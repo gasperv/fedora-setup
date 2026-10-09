@@ -32,10 +32,10 @@ Update everything: `sudo apt update && sudo apt full-upgrade && flatpak update`
 - CLI/dev tools, GNOME Tweaks + Extension Manager, GSConnect, Remmina, FileZilla, EasyEffects, OpenRGB
 - Steam, MangoHud, GameMode, Heroic, Bottles, ProtonUp-Qt
 - Zed, ImHex, jadx, Android Studio, FSearch, Satty, TeamSpeak (Flatpak)
-- JetBrainsMono Nerd Font, Slovenian keyboard, Europe/Ljubljana, dark mode, flat mouse accel
+- JetBrainsMono Nerd Font + Noto/Liberation/Fira fonts, Dash to Dock, Slovenian keyboard, Europe/Ljubljana, dark mode, flat mouse accel
 - firewalld + `lan-mode` in `~/.local/bin`
 
-Re-runnable; failed steps are listed at the end instead of aborting.
+Re-runnable; failed steps are listed at the end instead of aborting. Full output is logged to `~/setup-logs/` (`latest.log`, `latest-failed.txt`).
 
 ## LAN party
 ```bash
