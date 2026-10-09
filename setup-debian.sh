@@ -7,6 +7,8 @@
 #   NO_BACKPORTS=1  stay on plain stable kernel/Mesa
 #   NO_CLAUDE=1     skip Claude Desktop + Claude Code
 # Safe to re-run. Failing steps are reported at the end instead of aborting.
+# Full output is logged to ~/setup-logs/setup-debian-<timestamp>.log (colours stripped),
+# failed steps also go to ~/setup-logs/latest-failed.txt.
 #
 # Install tip: leave the ROOT password EMPTY in the Debian installer so your user gets sudo.
 
@@ -15,6 +17,13 @@ set -uo pipefail
 [[ $EUID -eq 0 ]] && { echo "Run as your normal user (script uses sudo itself)."; exit 1; }
 sudo -v || { echo "Your user has no sudo. As root run: usermod -aG sudo $USER  (then log out/in)"; exit 1; }
 while true; do sudo -n true; sleep 50; kill -0 "$$" || exit; done 2>/dev/null &
+
+LOG_DIR="$HOME/setup-logs"; mkdir -p "$LOG_DIR"
+LOG="$LOG_DIR/setup-debian-$(date +%Y%m%d-%H%M%S).log"
+ln -sf "$LOG" "$LOG_DIR/latest.log"
+# terminal keeps colours, log file gets plain text
+exec > >(tee >(sed -u -r 's/\x1b\[[0-9;]*[A-Za-z]//g' >> "$LOG")) 2>&1
+echo "Logging to $LOG"
 
 FAILED=()
 step() { echo -e "\n\033[1;34m==> $1\033[0m"; }
@@ -100,7 +109,10 @@ apt_try \
   filezilla baobab file-roller \
   easyeffects lsp-plugins-lv2 \
   openrgb corectrl \
-  timeshift firewalld
+  timeshift firewalld \
+  gnome-shell-extension-dashtodock \
+  fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji fonts-liberation \
+  fonts-jetbrains-mono fonts-firacode
 
 [[ -z "${NO_CLAUDE:-}" ]] && apt_try claude-desktop qemu-system-x86 ovmf virtiofsd
 
@@ -144,7 +156,7 @@ for f in "${FLATPAKS[@]}"; do run sudo flatpak install -y --noninteractive flath
 # --------------------------------------------------------------------------
 step "JetBrainsMono Nerd Font"
 FONT_DIR="$HOME/.local/share/fonts/JetBrainsMonoNF"
-if [[ ! -d "$FONT_DIR" ]]; then
+if ! ls "$FONT_DIR"/*.ttf >/dev/null 2>&1; then   # retry if an earlier download failed
   mkdir -p "$FONT_DIR"; TMP=$(mktemp -d)
   run curl -fL -o "$TMP/jbm.zip" https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
   [[ -f "$TMP/jbm.zip" ]] && unzip -oq "$TMP/jbm.zip" -d "$FONT_DIR" && fc-cache -f >/dev/null
@@ -156,7 +168,14 @@ step "Locale / GNOME defaults"
 run sudo timedatectl set-timezone Europe/Ljubljana
 gsettings set org.gnome.desktop.input-sources sources "[('xkb', 'si')]"
 gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
-gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrainsMono Nerd Font 11'
+# "Nerd Font Mono" = strict fixed width; the plain "Nerd Font" variant breaks terminal spacing
+gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrainsMono Nerd Font Mono 11'
+gsettings set org.gnome.desktop.interface font-antialiasing 'rgba'
+gsettings set org.gnome.desktop.interface font-hinting 'slight'
+# sharp XWayland apps (Electron/Chrome) when fractional scaling is used
+gsettings set org.gnome.mutter experimental-features "['scale-monitor-framebuffer','xwayland-native-scaling']"
+gnome-extensions enable dash-to-dock@micxgx.gmail.com 2>/dev/null \
+  || echo "  (Dash to Dock: log out/in, then enable it in Extension Manager)"
 gsettings set org.gnome.mutter center-new-windows true
 gsettings set org.gnome.desktop.wm.preferences button-layout 'appmenu:minimize,maximize,close'
 gsettings set org.gnome.desktop.peripherals.mouse accel-profile 'flat'
@@ -180,8 +199,11 @@ run sudo flatpak uninstall -y --unused
 echo
 if ((${#FAILED[@]})); then
   echo -e "\033[1;33mDone with ${#FAILED[@]} failed step(s):\033[0m"; printf '  - %s\n' "${FAILED[@]}"
+  printf '%s\n' "${FAILED[@]}" > "$LOG_DIR/latest-failed.txt"
 else
   echo -e "\033[1;32mAll done.\033[0m"
+  : > "$LOG_DIR/latest-failed.txt"
 fi
+echo "Full log: $LOG   (errors: grep -inE 'fail|error|^E:' $LOG)"
 echo "Reboot now (new kernel from backports, kvm/gamemode groups)."
 echo "Keep stable+backports updated with:  sudo apt update && sudo apt full-upgrade && flatpak update"
