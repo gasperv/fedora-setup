@@ -69,8 +69,11 @@ run $APT install "${BP[@]}" mesa-vulkan-drivers libgl1-mesa-dri libglx-mesa0 \
 # --------------------------------------------------------------------------
 step "Third-party repos: Google Chrome"
 sudo install -d -m 0755 /etc/apt/keyrings
-run bash -c 'curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor --yes -o /etc/apt/keyrings/google-chrome.gpg'
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+# keep the key armored (.asc): Debian 13's apt verifies with sqv, and Google signs with
+# several (sub)keys - the full armored file must be present
+run sudo curl -fsSLo /etc/apt/keyrings/google-chrome.asc https://dl.google.com/linux/linux_signing_key.pub
+sudo rm -f /etc/apt/keyrings/google-chrome.gpg
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.asc] https://dl.google.com/linux/chrome/deb/ stable main" \
   | sudo tee /etc/apt/sources.list.d/google-chrome.list >/dev/null
 
 if [[ -z "${NO_CLAUDE:-}" ]]; then
